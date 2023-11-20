@@ -1,0 +1,58 @@
+name: build
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build_windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Sources
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+          python-version: '3.10'
+
+    - name: Install Requirements
+      run:  |  # Custom pyinstaller built with https://github.com/yt-dlp/pyinstaller-builds
+          python devscripts/install_deps.py -o --include build
+          python devscripts/install_deps.py --include py2exe --include curl_cffi
+          python -m pip install -U "https://yt-dlp.github.io/Pyinstaller-Builds/x86_64/pyinstaller-5.8.0-py3-none-any.whl"
+
+    - name: Bump Version
+      id: bump_version
+      run: python devscripts/update-version.py
+
+    - name: Build Lazy Extractors
+      id: lazy_extractors
+      run: python devscripts/make_lazy_extractors.py
+
+    - name: Run PyInstaller Script
+      run: |
+          python -m bundle.pyinstaller
+          python -m bundle.pyinstaller --onedir
+
+
+    - name: Create Latest Build
+      id: create_release
+      uses: shxrklol/action-auto-releases-n20@v1.1
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        automatic_release_tag: "latest"
+        prerelease: false
+        title: Latest Build
+
+    - name: upload_packages
+      id: upload_release
+      uses: svenstaro/upload-release-action@2.9.0
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: dist/yt-dlp.exe
+        asset_name: yt-dlp.exe
+        tag: latest
+        overwrite: true
