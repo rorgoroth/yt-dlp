@@ -69,6 +69,12 @@ class ChaturbateIE(InfoExtractor):
             self.report_warning(f'Got status "{status}" from API; falling back to webpage extraction')
             return None
 
+        if response.get('cmaf_edge'):
+            m3u8_url = m3u8_url.replace('playlist.m3u8', 'playlist_sfm4s.m3u8')
+            # Login users and non-login users use 'live-fhls' and 'live-c-fhls', respectively
+            # There is also a similar pair for LLHLS (Low-Latency HLS): 'live-llhls' and 'live-c-llhls'
+            m3u8_url = re.sub('live-.+amlst', 'live-c-fhls/amlst', m3u8_url)
+
         return {
             'id': video_id,
             'title': video_id,
