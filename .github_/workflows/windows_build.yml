@@ -1,0 +1,64 @@
+name: build
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build_windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Sources
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+          python-version: '3.13'
+
+    - name: Install Requirements
+      run: |
+          python devscripts/install_deps.py --omit-default --include-extra build
+          python devscripts/install_deps.py --include-extra build-curl-cffi
+          python -m pip install -U "https://github.com/yt-dlp/Pyinstaller-Builds/releases/download/2025.11.29.054325/pyinstaller-6.17.0-py3-none-win_amd64.whl"
+
+    - name: Bump Version
+      id: bump_version
+      run: python devscripts/update-version.py
+
+    - name: Build Lazy Extractors
+      id: lazy_extractors
+      run: python devscripts/make_lazy_extractors.py
+
+    - name: Run PyInstaller Script
+      run: |
+          python -m bundle.pyinstaller
+          python -m bundle.pyinstaller --onedir
+
+    - name: Upload Package Artifacts
+      uses: actions/upload-artifact@master
+      with:
+        name: pkg-artifacts
+        path: dist/yt-dlp.exe
+        compression-level: 0
+
+    - name: Delete tag
+      run: gh release delete latest --cleanup-tag
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Sleep for 30 seconds
+      run: Start-Sleep -s 30
+      shell: powershell
+
+    - name: Upload Packages
+      id: upload_release
+      uses: svenstaro/upload-release-action@latest
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: dist/yt-dlp.exe
+        asset_name: yt-dlp.exe
+        tag: latest
+        overwrite: true
